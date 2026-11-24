@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes
+.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes note-edit
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -90,3 +90,13 @@ notes: ## List the notes I can see (optional AUTHOR=<user id>, PAGE=, SIZE=)
 	curl --silent --show-error --fail-with-body --get $(BASE_URL)/notes -H "Authorization: Bearer $$(cat .token)" \
 		$(if $(AUTHOR),--data-urlencode author=$(AUTHOR)) \
 		$(if $(PAGE),--data-urlencode pageNumber=$(PAGE)) $(if $(SIZE),--data-urlencode pageSize=$(SIZE)) && echo
+
+note-edit: ## Edit a note's text (ID and VERSION required; TITLE and/or BODY)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(ID)" -a -n "$(VERSION)" || (echo "ID and VERSION are required, for example: make note-edit ID=<note id> VERSION=1 BODY='new text'" && exit 1)
+	@NOTE_TITLE="$(TITLE)" NOTE_BODY="$(BODY)" NOTE_VERSION="$(VERSION)" node -e "const b = { version: Number(process.env.NOTE_VERSION) }; \
+		if (process.env.NOTE_TITLE) b.title = process.env.NOTE_TITLE; \
+		if (process.env.NOTE_BODY) b.body = process.env.NOTE_BODY; \
+		process.stdout.write(JSON.stringify(b))" \
+		| curl --silent --show-error --fail-with-body -X PATCH $(BASE_URL)/notes/$(ID) \
+			-H "Authorization: Bearer $$(cat .token)" -H 'Content-Type: application/json' --data-binary @- && echo

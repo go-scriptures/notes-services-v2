@@ -9,6 +9,8 @@
 import { Access, isValidAccess, isWider } from '../enum/access_enum.js';
 import ValidationError from '../error/validation_error.js';
 import NotFoundError from '../error/not_found_error.js';
+import ForbiddenError from '../error/forbidden_error.js';
+import ConflictError from '../error/conflict_error.js';
 
 const ACCESS_RULE = `must be one of ${Object.values(Access).join(', ')}`;
 const DEFAULT_PAGE_NUMBER = 1;
@@ -185,6 +187,64 @@ export function createNoteManager({ noteApi }) {
                 offset: paging.offset
             });
             return toPage(rows, paging);
+        },
+
+        /**
+         * Edits a note's text (title and/or body) for a caller with edit access.
+         * The caller states the version they edited; a stale version or a locked note is a conflict.
+         * Checks, in order: valid input (400), can see (404), can edit (403), locked (409), version (409).
+         */
+        async editNote(identity, id, input = {}) {
+            const details = [];
+            const changes = {};
+            if (input.title !== undefined) {
+                if (isNonBlankString(input.title)) {
+                    changes.title = input.title;
+                } else {
+                    details.push('title must be a non-blank string');
+                }
+            }
+            if (input.body !== undefined) {
+                if (input.body === null || typeof input.body === 'string') {
+                    changes.body = input.body;
+                } else {
+                    details.push('body must be a string or null');
+                }
+            }
+            if (input.title === undefined && input.body === undefined) {
+                details.push('at least one of title, body is required');
+            }
+            if (!Number.isInteger(input.version) || input.version < 1) {
+                details.push('version is required: the version of the note being edited');
+            }
+            if (details.length > 0) {
+                throw new ValidationError('Invalid note edit', details);
+            }
+
+            const note = await findVisibleNote(identity, id);
+            if (!canEdit(note, identity)) {
+                throw new ForbiddenError('You do not have edit access to this note');
+            }
+            if (note.locked) {
+                throw new ConflictError('note is locked');
+            }
+            if (note.version !== input.version) {
+                throw new ConflictError(`note has changed since version ${input.version}; reload and try again`);
+            }
+
+            const edited = await noteApi.editNote({ id, version: input.version, editorId: identity.userId, changes });
+            if (edited) {
+                return edited;
+            }
+            // Another change landed between the check and the write: report what it was.
+            const current = await noteApi.findNoteById(id);
+            if (!current) {
+                throw new NotFoundError(`Note ${id} not found`);
+            }
+            if (current.locked) {
+                throw new ConflictError('note is locked');
+            }
+            throw new ConflictError(`note has changed since version ${input.version}; reload and try again`);
         }
     };
 }

@@ -10,6 +10,8 @@ import { createNoteManager } from '../manager/note_manager.js';
 import Note from '../model/note_model.js';
 import ValidationError from '../error/validation_error.js';
 import NotFoundError from '../error/not_found_error.js';
+import ForbiddenError from '../error/forbidden_error.js';
+import ConflictError from '../error/conflict_error.js';
 
 // Sam and Mike are seahawks; Drake is a patriot.
 const SAM = { userId: 'u-sam', teamId: 't-seahawks' };
@@ -50,6 +52,15 @@ function fakeNoteApi() {
                 .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
                 .slice(offset, offset + limit)
                 .map(note => new Note({ ...note }));
+        },
+        async editNote({ id, version, editorId, changes }) {
+            const note = notes.get(id);
+            if (!note || note.version !== version || note.locked) {
+                return null;
+            }
+            Object.assign(note, changes, { version: note.version + 1, updatedAt: new Date().toISOString() });
+            activity.push({ noteId: id, userId: editorId, action: 'edited' });
+            return new Note({ ...note });
         }
     };
 }
@@ -199,5 +210,64 @@ describe('List', () => {
     // An author given twice arrives as a list, and is rejected.
     test('rejects a repeated author', async () => {
         await assert.rejects(manager.listNotes(SAM, { author: ['u-sam', 'u-mike'] }), ValidationError);
+    });
+});
+
+// Editing a note's text
+describe('Edit', () => {
+    // A teammate with edit access changes the body; the version moves on and the edit is logged.
+    test('a teammate with edit access edits, and the version moves on', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
+        const edited = await manager.editNote(MIKE, note.id, { body: 'run the ball', version: 1 });
+        assert.equal(edited.body, 'run the ball');
+        assert.equal(edited.title, 'Plan');
+        assert.equal(edited.version, 2);
+        assert.deepEqual(activity.at(-1), { noteId: note.id, userId: 'u-mike', action: 'edited' });
+    });
+
+    // A teammate who can see but not edit is forbidden.
+    test('a teammate without edit access is forbidden', async () => {
+        const note = await manager.createNote(SAM, { title: 'Read only', viewAccess: 'team' });
+        await assert.rejects(manager.editNote(MIKE, note.id, { title: 'x', version: 1 }), ForbiddenError);
+    });
+
+    // A note the caller cannot see is not found.
+    test('another team gets not found', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
+        await assert.rejects(manager.editNote(DRAKE, note.id, { title: 'x', version: 1 }), NotFoundError);
+    });
+
+    // An edit based on an old version is rejected, and the newer change survives.
+    test('a stale version is a conflict, and nothing is lost', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
+        await manager.editNote(SAM, note.id, { body: 'first', version: 1 });
+        const err = await manager.editNote(MIKE, note.id, { body: 'second', version: 1 }).catch(error => error);
+        assert.ok(err instanceof ConflictError);
+        assert.match(err.message, /changed since version 1/);
+        assert.equal((await manager.getNote(SAM, note.id)).body, 'first');
+    });
+
+    // A locked note cannot be edited, even by its author.
+    test('a locked note is a conflict, even for the author', async () => {
+        const note = await manager.createNote(SAM, { title: 'Final' });
+        notes.get(note.id).locked = true;
+        const err = await manager.editNote(SAM, note.id, { title: 'x', version: 1 }).catch(error => error);
+        assert.ok(err instanceof ConflictError);
+        assert.equal(err.message, 'note is locked');
+    });
+
+    // The version is required, and every problem is reported before the note is looked up.
+    test('requires the version and reports every problem', async () => {
+        const err = await manager.editNote(SAM, 'no-such-id', { title: ' ', body: 5 }).catch(error => error);
+        assert.ok(err instanceof ValidationError);
+        assert.equal(err.details.length, 3);
+    });
+
+    // Attributes cannot be changed through a text edit.
+    test('ignores attribute fields in a text edit', async () => {
+        const note = await manager.createNote(SAM, { title: 'T' });
+        const edited = await manager.editNote(SAM, note.id, { title: 'U', viewAccess: 'team', locked: true, version: 1 });
+        assert.equal(edited.viewAccess, 'author');
+        assert.equal(edited.locked, false);
     });
 });

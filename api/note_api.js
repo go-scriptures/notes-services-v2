@@ -11,6 +11,8 @@ import Note from '../model/note_model.js';
 import { Action } from '../enum/action_enum.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// The text fields an edit may change, mapped to their columns.
+const TEXT_COLUMNS = { title: 'title', body: 'body' };
 
 /**
  * Turns a database row (a note joined with its author's team_id) into a Note.
@@ -101,6 +103,35 @@ export function createNoteApi(pool) {
                 params
             );
             return rows.map(toNote);
+        },
+
+        /**
+         * Changes a note's text (title and/or body) and records the 'edited' activity entry,
+         * in one statement, only if the note is still at the given version and unlocked.
+         * Increments the version. Returns the note with its author's team, or null when
+         * nothing was changed (the note is gone, locked, or at another version).
+         */
+        async editNote({ id, version, editorId, changes }) {
+            const params = [id, version, editorId, Action.EDITED];
+            const assignments = Object.entries(changes).map(([field, value]) => {
+                params.push(value);
+                return `${TEXT_COLUMNS[field]} = $${params.length}`;
+            });
+            const { rows } = await pool.query(
+                `WITH updated AS (
+                     UPDATE notes
+                     SET ${assignments.join(', ')}, version = version + 1, updated_at = now()
+                     WHERE id = $1 AND version = $2 AND NOT locked
+                     RETURNING *
+                 ), logged AS (
+                     INSERT INTO activity (note_id, user_id, action)
+                     SELECT id, $3, $4 FROM updated
+                 )
+                 SELECT updated.*, users.team_id
+                 FROM updated JOIN users ON users.id = updated.created_by`,
+                params
+            );
+            return rows[0] ? toNote(rows[0]) : null;
         }
     };
 }

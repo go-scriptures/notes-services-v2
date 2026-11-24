@@ -30,5 +30,10 @@ export function noteRoutes(noteManager, authManager) {
         res.json(await noteManager.getNote(req.identity, req.params.id));
     });
 
+    // Edit a note's text (title and/or body), stating the version being edited.
+    router.patch('/:id', async (req, res) => {
+        res.json(await noteManager.editNote(req.identity, req.params.id, req.body));
+    });
+
     return router;
 }
