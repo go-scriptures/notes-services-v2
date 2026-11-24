@@ -50,13 +50,21 @@ GitHub Actions runs both on every push: the unit tests on Node 20 and 22, and th
 ## Project Structure
 
 ```
-app.js, server.js     build the app; start it (graceful shutdown on SIGTERM and SIGINT)
-routes/               HTTP only
-middleware/           request IDs and logging, error handling
+app.js, server.js     build the app; start it (migrations, graceful shutdown on SIGTERM and SIGINT)
+routes/               tier 1, HTTP only: read the request, call the manager, send the status
+manager/              tier 2, business rules: who may see, edit and change what; throws typed errors
+api/                  tier 3, data access only: parameterised SQL, one statement per change with its activity entry
+model/, enum/         notes, users and activity entries; access scopes and activity actions
 error/                typed errors, each mapped to an HTTP status
-util/                 configuration, logging, database pool (operational, outside the tiers)
-test/                 tests, using Node's built-in runner
+middleware/           request IDs and logging, the token check, the central error handler
+util/                 operational, outside the tiers: configuration, logging, database pool, migrations, passwords, tokens
+migrations/           numbered SQL files, applied at startup
+scripts/              seed data and the demo walk-through (operational)
+test/                 unit and integration tests, on Node's built-in runner
+.github/workflows/    CI
 ```
+
+File names carry their tier as a suffix (`note_routes.js`, `note_manager.js`, `note_api.js`), so an import line, editor tab or stack trace shows the tier without reading the folder.
 
 ## Design Decisions
 
@@ -110,6 +118,8 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 
 ## Assumptions
 
+- **Docker is the one prerequisite besides Node.** PostgreSQL and the service run in Docker Compose, as they would be run for real; `make check` stops with a clear message if Docker or Compose is missing or not running.
+- **Node 20 or later.** Node 18 is past end of life. The service checks the version before anything else loads and stops with a clear message on an older one; `package.json` and `engine-strict` check it again at install. CI runs the tests on Node 20 and 22.
 - **No registration; login stands in for an identity provider.** Users are seeded. `POST /auth/login` checks a hashed password and issues a 15-minute token; every other request presents it. In production an identity provider would own registration and login, and only the token check would remain here.
 - **Paging defaults to page 1 of 25, and a page holds at most 100 items.** A larger `pageSize` returns 400 rather than being silently reduced. There is no right answer for these numbers; they keep responses small, and the decision is recorded here so it can be changed deliberately. Each list reads one extra row to set `hasNextPage`, rather than counting every row.
 - **Demo users share one password, on purpose.** The seed data (two teams of three users) exists so reviewers can sign in as anyone and see every rule in action; one shared password keeps that simple. It is supplied through `SEED_PASSWORD`, never stored in the code, and is for local demonstration only.
@@ -181,5 +191,12 @@ Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <
 - **DevOps: stop keeping the token secret in `compose.yaml`.** Use a secret store, even in shared development environments.
 
 ## AI-Assisted Development
+
+Claude Code was used to write the code and this document. The design, and each decision in it, were worked through and directed by the author: the AI listed each step's files for approval before building them, and built only what was approved.
+
+| File | Purpose |
+|---|---|
+| `AGENTS.md` | The rules for any AI tool: working agreement, build protocol, stack, architecture, conventions |
+| `CLAUDE.md` | One line, `@AGENTS.md`, so Claude Code reads the same rules |
 
 This documentation is intentionally brief. Questions or requests for more detail are welcome and can guide further discussion.
