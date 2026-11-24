@@ -21,7 +21,19 @@ The service listens on http://localhost:3000; PostgreSQL is on host port 5433.
 
 After `make up`, run these in order:
 
-1. `make health`: the service and its database answer.
+1. `make seed`: load the demo teams and users (safe to repeat).
+2. `make health`: the service and its database answer.
+
+Demo users, all with the password `notes-demo-password`:
+
+| Team | User | Email |
+|---|---|---|
+| seahawks | Sam Darnold | sdarnold@seahawks.com |
+| seahawks | Mike Macdonald | mmacdonald@seahawks.com |
+| seahawks | Kenneth Walker | kwalker@seahawks.com |
+| patriots | Drake Maye | dmaye@patriots.com |
+| patriots | Mike Vrabel | mvrabel@patriots.com |
+| patriots | Rhamondre Stevenson | rstevenson@patriots.com |
 
 ## Project Structure
 
@@ -85,6 +97,8 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 - **Real-time collaboration:** live co-editing, as in Google Docs, using operational transforms or CRDTs. This is a different architecture, not an extension.
 
 ## Assumptions
+
+- **Demo users share one password, on purpose.** The seed data (two teams of three users) exists so reviewers can sign in as anyone and see every rule in action; one shared password keeps that simple. It is supplied through `SEED_PASSWORD`, never stored in the code, and is for local demonstration only.
 
 - **Only the author can change a note's attributes,** so a mistake made at creation can be corrected; no one else can change them.
 - **Your own activity includes notes you can no longer see.** It is your history, so it stays visible to you; because entries never carry a note's title or content, this reveals nothing the note now holds. Opening such a note still returns 404.

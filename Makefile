@@ -3,8 +3,9 @@
 .DEFAULT_GOAL := help
 NODE_MIN := 20
 BASE_URL ?= http://localhost:3000
+SEED_PASSWORD ?= notes-demo-password
 
-.PHONY: help check install up down logs test health
+.PHONY: help check install up down logs seed db-reset psql test health
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -30,6 +31,17 @@ down: ## Stop the database and the service (data is kept)
 
 logs: ## Follow the service's logs
 	docker compose logs --follow api
+
+seed: ## Load the demo teams and users (safe to repeat)
+	docker compose exec -e SEED_PASSWORD='$(SEED_PASSWORD)' api node scripts/seed.js
+
+db-reset: check ## Delete all data, then start again with a fresh, migrated and seeded database
+	docker compose down --volumes
+	docker compose up --build --detach --wait
+	$(MAKE) seed
+
+psql: ## Open a SQL prompt on the database
+	docker compose exec db psql -U notes -d notes
 
 test: ## Run the tests
 	npm test
