@@ -6,28 +6,26 @@ A back-end REST service where several small teams capture notes and work on them
 
 ## Getting Started
 
-Requires Docker (with Compose) and Node 20 or later. Every routine task is a Make target; `make help` lists them.
+Requires Docker (with Compose) and Node 20 or later. Every routine task is a Make target; `make help` lists them all.
 
-```
-make install   # install Node dependencies
-make up        # build and start PostgreSQL and the service; waits until both are healthy
-make test      # run the tests
-make down      # stop (data is kept)
-```
+### From Clone to Running
+
+Run these in order from the project folder:
+
+1. `make install`: install Node dependencies.
+2. `make up`: check the prerequisites, then build and start PostgreSQL and the service; migrations run automatically, and it waits until both are healthy.
+3. `make seed`: load the demo teams and users (safe to repeat).
+4. `make health`: the service and its database answer.
+5. `make login`, then `make auth-test`: log in (default Sam Darnold; any user with `EMAIL=...`), save the token, and confirm it is accepted.
+6. `make demo`: a scripted walk-through of the rules as the demo users (sharing, a stale edit rejected, other team refused, author-only delete, the lock, the activity log), printing each step's HTTP status.
+7. `make test`, then `make test-integration`: the unit tests, then every test against a separate PostgreSQL test database (see Testing).
+8. `make down`: stop (data is kept); `make db-reset` starts again from an empty, seeded database.
 
 The service listens on http://localhost:3000; PostgreSQL is on host port 5433.
 
-## Validating a New Install
+### Demo Users
 
-After `make up`, run these in order:
-
-1. `make seed`: load the demo teams and users (safe to repeat).
-2. `make health`: the service and its database answer.
-3. `make login`: log in (default Sam Darnold; any user with `EMAIL=...`) and save the token.
-4. `make auth-test`: the saved token is accepted, and shows who it belongs to.
-5. `make demo`: a scripted walk-through of the rules as the demo users (sharing, a stale edit rejected, other team refused, author-only delete, the lock, the activity log), printing each step's HTTP status.
-
-Demo users, all with the password `notes-demo-password`:
+All with the password `notes-demo-password`:
 
 | Team | User | Email |
 |---|---|---|
