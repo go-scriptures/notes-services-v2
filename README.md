@@ -110,6 +110,8 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 
 ## Known Limitations
 
+- **Deletes are hard deletes, and the activity log has no foreign key to notes.** Deleting a note removes it permanently; its activity entries, including a `deleted` entry, are kept, so each user's own activity still shows their changes. Because the note row is gone, `activity.note_id` cannot reference it, so the database does not enforce referential integrity on that column. We would prefer a soft delete (the note kept with a `deleted_at` timestamp) with a real foreign key, which would also let an author restore a note; given our timeframe, we chose the hard delete.
+
 - **Pages can shift.** Paging uses offsets, so if a note is added or deleted while someone is paging, an item can appear on two pages or be skipped.
 - **Deep pages get slower.** The database still reads past every skipped row; irrelevant at small-team scale.
 - **The list's visibility rule is also expressed in SQL.** Filtering after reading a page would return short pages, so the database filters by who may see each note. The manager still decides which filters apply; adding a wider scope means updating this query as well.
@@ -143,6 +145,7 @@ Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <
 - **Access for everyone.** Extend the view and edit scopes beyond the team to `everyone`, so notes can be shared across teams.
 - **Viewed events in the activity log.** Record when a user views a note, so someone starting work can find "the note I was reading yesterday".
 - **More detail in the activity log.** Record what specifically changed, or before and after images of the note.
+- **Soft delete with referential integrity.** Keep deleted notes with a `deleted_at` timestamp, add a foreign key from `activity.note_id` to `notes`, and let an author restore a note deleted by mistake. Every note query would exclude deleted notes.
 - **Users changing teams.** A note's team is read through its author, not stored on the note, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. With more time we would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.
 - **A "notes I can edit" filter.** The notes list filters by author; a filter for notes the caller can edit would help someone looking for work to contribute to.
 - **Activity for notes you can no longer see.** Today your own activity lists every change you made, so you can click an entry for a note you no longer have access to and get an error. Two better options: mark such entries as "can no longer view", so a client can show them without a link; or leave them out of your activity altogether. We chose not to build either in this exercise.
