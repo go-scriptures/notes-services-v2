@@ -25,6 +25,7 @@ After `make up`, run these in order:
 2. `make health`: the service and its database answer.
 3. `make login`: log in (default Sam Darnold; any user with `EMAIL=...`) and save the token.
 4. `make auth-test`: the saved token is accepted, and shows who it belongs to.
+5. `make demo`: a scripted walk-through of the rules as the demo users (sharing, a stale edit rejected, other team refused, author-only delete, the lock, the activity log), printing each step's HTTP status.
 
 Demo users, all with the password `notes-demo-password`:
 
@@ -151,13 +152,33 @@ Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <
 
 ## With More Time: Change, Add, Stop
 
-- **Access for everyone.** Extend the view and edit scopes beyond the team to `everyone`, so notes can be shared across teams.
+### Change
+
+- **Cursor paging instead of offsets,** if lists grow large: stable pages while notes are added, and constant cost for deep pages.
+
+### Add
+
+- **Sharing across teams.** Extend the view and edit scopes beyond the team with a new scope, `everyone`, so notes can be shared across teams.
 - **Viewed events in the activity log.** Record when a user views a note, so someone starting work can find "the note I was reading yesterday".
 - **More detail in the activity log.** Record what specifically changed, or before and after images of the note.
-- **Soft delete with referential integrity.** Keep deleted notes with a `deleted_at` timestamp, add a foreign key from `activity.note_id` to `notes`, and let an author restore a note deleted by mistake. Every note query would exclude deleted notes.
-- **Users changing teams.** A note's team is read through its author, not stored on the note, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. With more time we would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.
+- **Search.** Find notes by words in their title or body (for example with PostgreSQL full-text search), limited to the notes the caller can see.
 - **A "notes I can edit" filter.** The notes list filters by author; a filter for notes the caller can edit would help someone looking for work to contribute to.
-- **Activity for notes you can no longer see.** Today your own activity lists every change you made, so you can click an entry for a note you no longer have access to and get an error. Two better options: mark such entries as "can no longer view", so a client can show them without a link; or leave them out of your activity altogether. We chose not to build either in this exercise.
+
+### Stop: Functional
+
+- **Stop hard-deleting notes.** Keep deleted notes with a `deleted_at` timestamp, add a foreign key from `activity.note_id` to `notes` for referential integrity, and let an author restore a note deleted by mistake. Every note query would exclude deleted notes.
+- **Stop throwing away concurrent edits wholesale.** A stale edit is rejected even when the two people changed different fields; merge field by field, and reject only real conflicts (see Resolving Concurrent Edits).
+- **Stop moving notes with their author.** A note's team is read through its author, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. We would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.
+- **Stop listing activity you cannot open.** Your own activity lists every change you made, so you can click an entry for a note you no longer have access to and get an error. Two better options: mark such entries as "can no longer view", so a client can show them without a link; or leave them out of your activity altogether.
+
+### Stop: Technical
+
+- **Programming: stop expressing visibility in two places.** The rule lives in the manager and again in the list's SQL, so adding a scope means changing both. Keep one source of truth, for example by generating the SQL filter from the scope definitions.
+- **Architecture: stop issuing tokens in this service.** Login is a stand-in; an identity provider should own registration and login (signing with its own keys), leaving only the token check here.
+- **Architecture: stop using one shared demo password and the seed script** outside local demonstration.
+- **DevOps: stop running migrations at service startup.** Run them as a separate deploy step, so instances never race and a bad migration does not take every instance down.
+- **DevOps: stop logging every health check at `info`.** Docker calls `/health` every 5 seconds, which floods the logs; log successes at `debug`.
+- **DevOps: stop keeping the token secret in `compose.yaml`.** Use a secret store, even in shared development environments.
 
 ## AI-Assisted Development
 

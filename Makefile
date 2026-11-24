@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test test-integration health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock note-delete activity-note activity-mine
+.PHONY: help check install up down logs seed db-reset psql test test-integration demo health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock note-delete activity-note activity-mine
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -52,6 +52,9 @@ test-integration: ## Run every test, including integration tests against a separ
 	@docker compose exec -T db psql -U notes -d notes -tAc "SELECT 1 FROM pg_database WHERE datname = 'notes_test'" | grep -q 1 \
 		|| docker compose exec -T db createdb -U notes notes_test
 	TEST_DATABASE_URL=postgres://notes:notes@localhost:5433/notes_test npm test
+
+demo: ## Walk through the rules as the demo users, showing each step's status (after make up and make seed)
+	BASE_URL=$(BASE_URL) SEED_PASSWORD='$(SEED_PASSWORD)' ./scripts/demo.sh
 
 # ---------------------------------------------------------------------------
 # Validating a new install: run these in order after `make up`.
