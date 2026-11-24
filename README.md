@@ -77,7 +77,7 @@ Every change to a note is recorded in an activity log: who, when, which note, an
 - **Locking and unlocking use `PUT /notes/{id}/lock` and `PUT /notes/{id}/unlock`.** `PUT` acts on a note that must already exist, and setting the same state twice leaves it unchanged.
 - **The notes list shows every note the caller can see in their team,** newest first, and can be narrowed to one author with `author={userId}`. A caller's own notes are `author={their own user ID}`, so no separate "mine" filter is needed.
 - **Only the author can delete a note.** A contributor who regrets a contribution edits it back out of the note.
-- **The activity log records changes, not views.** Each entry holds who, when, which note, and the action, never the note's title or content. Locking and unlocking are their own actions, distinct from changing the attributes.
+- **The activity log records changes, not views.** Each entry holds who, when, which note, and the action, never the note's title or content. Locking and unlocking are their own actions, distinct from changing the attributes. A request that changes nothing (locking a locked note, or setting attributes to the values they already have) succeeds and records nothing.
 - **A note's activity follows the note's current visibility.** `GET /activity/notes/{noteId}` returns the activity only to users who can see the note now, and 404 otherwise. If the author narrows who can see a note, users who lose sight of the note also lose sight of its activity.
 - **Your own activity is always yours.** `GET /activity/users/{userId}` returns every change you made, across all notes, including notes you can no longer see and notes since deleted. Asking for another user's activity returns 403.
 

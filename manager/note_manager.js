@@ -127,6 +127,28 @@ export function createNoteManager({ noteApi }) {
         return note;
     }
 
+    /**
+     * Returns the note when the caller wrote it. A note the caller can see but did not write
+     * throws ForbiddenError; a note the caller cannot see throws NotFoundError.
+     */
+    async function findOwnNote(identity, id) {
+        const note = await findVisibleNote(identity, id);
+        if (note.createdBy !== identity.userId) {
+            throw new ForbiddenError('Only the author can do this');
+        }
+        return note;
+    }
+
+    /**
+     * Locks or unlocks a note the caller wrote. Setting the state it already has changes
+     * nothing and records nothing.
+     */
+    async function setLocked(identity, id, locked) {
+        const note = await findOwnNote(identity, id);
+        const changed = await noteApi.setLocked({ id, actorId: identity.userId, locked });
+        return changed ?? note;
+    }
+
     return {
         /**
          * Creates a note written by the caller. title is required; body is optional;
@@ -245,6 +267,46 @@ export function createNoteManager({ noteApi }) {
                 throw new ConflictError('note is locked');
             }
             throw new ConflictError(`note has changed since version ${input.version}; reload and try again`);
+        },
+
+        /**
+         * Changes a note's viewAccess and/or editAccess. Author only; allowed while locked.
+         * The resulting pair must keep edit no wider than view. Setting the values it already
+         * has changes nothing and records nothing.
+         */
+        async changeAttributes(identity, id, input = {}) {
+            const details = [];
+            if (input.viewAccess === undefined && input.editAccess === undefined) {
+                details.push('at least one of viewAccess, editAccess is required');
+            }
+            if (details.length > 0) {
+                throw new ValidationError('Invalid attributes', details);
+            }
+
+            const note = await findOwnNote(identity, id);
+            const viewAccess = input.viewAccess ?? note.viewAccess;
+            const editAccess = input.editAccess ?? note.editAccess;
+            checkAccess(viewAccess, editAccess, details);
+            if (details.length > 0) {
+                throw new ValidationError('Invalid attributes', details);
+            }
+
+            const changed = await noteApi.changeAttributes({ id, actorId: identity.userId, viewAccess, editAccess });
+            return changed ?? note;
+        },
+
+        /**
+         * Locks a note: no one can edit its text until it is unlocked. Author only.
+         */
+        async lockNote(identity, id) {
+            return setLocked(identity, id, true);
+        },
+
+        /**
+         * Unlocks a note. Author only.
+         */
+        async unlockNote(identity, id) {
+            return setLocked(identity, id, false);
         }
     };
 }

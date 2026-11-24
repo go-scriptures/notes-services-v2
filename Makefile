@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes note-edit
+.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -100,3 +100,23 @@ note-edit: ## Edit a note's text (ID and VERSION required; TITLE and/or BODY)
 		process.stdout.write(JSON.stringify(b))" \
 		| curl --silent --show-error --fail-with-body -X PATCH $(BASE_URL)/notes/$(ID) \
 			-H "Authorization: Bearer $$(cat .token)" -H 'Content-Type: application/json' --data-binary @- && echo
+
+note-attributes: ## Change who can see and edit a note (ID required; VIEW and/or EDIT: author or team)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(ID)" || (echo "ID is required, for example: make note-attributes ID=<note id> VIEW=team" && exit 1)
+	@NOTE_VIEW="$(VIEW)" NOTE_EDIT="$(EDIT)" node -e "const b = {}; \
+		if (process.env.NOTE_VIEW) b.viewAccess = process.env.NOTE_VIEW; \
+		if (process.env.NOTE_EDIT) b.editAccess = process.env.NOTE_EDIT; \
+		process.stdout.write(JSON.stringify(b))" \
+		| curl --silent --show-error --fail-with-body -X PATCH $(BASE_URL)/notes/$(ID)/attributes \
+			-H "Authorization: Bearer $$(cat .token)" -H 'Content-Type: application/json' --data-binary @- && echo
+
+note-lock: ## Lock a note's text (ID required)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(ID)" || (echo "ID is required, for example: make note-lock ID=<note id>" && exit 1)
+	curl --silent --show-error --fail-with-body -X PUT $(BASE_URL)/notes/$(ID)/lock -H "Authorization: Bearer $$(cat .token)" && echo
+
+note-unlock: ## Unlock a note's text (ID required)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(ID)" || (echo "ID is required, for example: make note-unlock ID=<note id>" && exit 1)
+	curl --silent --show-error --fail-with-body -X PUT $(BASE_URL)/notes/$(ID)/unlock -H "Authorization: Bearer $$(cat .token)" && echo

@@ -132,6 +132,50 @@ export function createNoteApi(pool) {
                 params
             );
             return rows[0] ? toNote(rows[0]) : null;
+        },
+
+        /**
+         * Sets a note's viewAccess and editAccess and records the 'attributes_changed' entry, in one
+         * statement, only if they actually change. Does not touch the version. Returns the note,
+         * or null when nothing changed (or there is no such note).
+         */
+        async changeAttributes({ id, actorId, viewAccess, editAccess }) {
+            const { rows } = await pool.query(
+                `WITH updated AS (
+                     UPDATE notes SET view_access = $2, edit_access = $3, updated_at = now()
+                     WHERE id = $1 AND (view_access <> $2 OR edit_access <> $3)
+                     RETURNING *
+                 ), logged AS (
+                     INSERT INTO activity (note_id, user_id, action)
+                     SELECT id, $4, $5 FROM updated
+                 )
+                 SELECT updated.*, users.team_id
+                 FROM updated JOIN users ON users.id = updated.created_by`,
+                [id, viewAccess, editAccess, actorId, Action.ATTRIBUTES_CHANGED]
+            );
+            return rows[0] ? toNote(rows[0]) : null;
+        },
+
+        /**
+         * Locks or unlocks a note and records the 'locked' or 'unlocked' entry, in one statement,
+         * only if the state actually changes. Does not touch the version. Returns the note,
+         * or null when nothing changed (or there is no such note).
+         */
+        async setLocked({ id, actorId, locked }) {
+            const { rows } = await pool.query(
+                `WITH updated AS (
+                     UPDATE notes SET locked = $2, updated_at = now()
+                     WHERE id = $1 AND locked <> $2
+                     RETURNING *
+                 ), logged AS (
+                     INSERT INTO activity (note_id, user_id, action)
+                     SELECT id, $3, $4 FROM updated
+                 )
+                 SELECT updated.*, users.team_id
+                 FROM updated JOIN users ON users.id = updated.created_by`,
+                [id, locked, actorId, locked ? Action.LOCKED : Action.UNLOCKED]
+            );
+            return rows[0] ? toNote(rows[0]) : null;
         }
     };
 }

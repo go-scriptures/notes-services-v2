@@ -35,5 +35,20 @@ export function noteRoutes(noteManager, authManager) {
         res.json(await noteManager.editNote(req.identity, req.params.id, req.body));
     });
 
+    // Change who can see and who can edit a note (author only).
+    router.patch('/:id/attributes', async (req, res) => {
+        res.json(await noteManager.changeAttributes(req.identity, req.params.id, req.body));
+    });
+
+    // Lock a note's text (author only).
+    router.put('/:id/lock', async (req, res) => {
+        res.json(await noteManager.lockNote(req.identity, req.params.id));
+    });
+
+    // Unlock a note's text (author only).
+    router.put('/:id/unlock', async (req, res) => {
+        res.json(await noteManager.unlockNote(req.identity, req.params.id));
+    });
+
     return router;
 }

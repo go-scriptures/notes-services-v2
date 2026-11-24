@@ -61,6 +61,24 @@ function fakeNoteApi() {
             Object.assign(note, changes, { version: note.version + 1, updatedAt: new Date().toISOString() });
             activity.push({ noteId: id, userId: editorId, action: 'edited' });
             return new Note({ ...note });
+        },
+        async changeAttributes({ id, actorId, viewAccess, editAccess }) {
+            const note = notes.get(id);
+            if (!note || (note.viewAccess === viewAccess && note.editAccess === editAccess)) {
+                return null;
+            }
+            Object.assign(note, { viewAccess, editAccess });
+            activity.push({ noteId: id, userId: actorId, action: 'attributes_changed' });
+            return new Note({ ...note });
+        },
+        async setLocked({ id, actorId, locked }) {
+            const note = notes.get(id);
+            if (!note || note.locked === locked) {
+                return null;
+            }
+            note.locked = locked;
+            activity.push({ noteId: id, userId: actorId, action: locked ? 'locked' : 'unlocked' });
+            return new Note({ ...note });
         }
     };
 }
@@ -269,5 +287,67 @@ describe('Edit', () => {
         const edited = await manager.editNote(SAM, note.id, { title: 'U', viewAccess: 'team', locked: true, version: 1 });
         assert.equal(edited.viewAccess, 'author');
         assert.equal(edited.locked, false);
+    });
+});
+
+// Changing attributes, and locking
+describe('Attributes and lock', () => {
+    // The author widens access; the version is untouched and the change is logged.
+    test('the author changes attributes without touching the version', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan' });
+        const changed = await manager.changeAttributes(SAM, note.id, { viewAccess: 'team', editAccess: 'team' });
+        assert.equal(changed.viewAccess, 'team');
+        assert.equal(changed.editAccess, 'team');
+        assert.equal(changed.version, 1);
+        assert.equal(activity.at(-1).action, 'attributes_changed');
+    });
+
+    // A teammate, even one with edit access, cannot change the attributes.
+    test('a teammate is forbidden to change attributes', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
+        await assert.rejects(manager.changeAttributes(MIKE, note.id, { editAccess: 'author' }), ForbiddenError);
+    });
+
+    // The resulting pair must keep edit no wider than view.
+    test('rejects a change that makes edit wider than view', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
+        const err = await manager.changeAttributes(SAM, note.id, { viewAccess: 'author' }).catch(error => error);
+        assert.ok(err instanceof ValidationError);
+        assert.deepEqual(err.details, ['editAccess cannot be wider than viewAccess']);
+    });
+
+    // Setting the values a note already has changes nothing and logs nothing.
+    test('an unchanged attribute change logs nothing', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan' });
+        const result = await manager.changeAttributes(SAM, note.id, { viewAccess: 'author' });
+        assert.equal(result.id, note.id);
+        assert.equal(activity.length, 1);
+    });
+
+    // The author locks; the author can still change attributes; unlock allows editing again.
+    test('lock blocks text edits only, and unlock allows them again', async () => {
+        const note = await manager.createNote(SAM, { title: 'Final' });
+        assert.equal((await manager.lockNote(SAM, note.id)).locked, true);
+        await assert.rejects(manager.editNote(SAM, note.id, { title: 'x', version: 1 }), ConflictError);
+        assert.equal((await manager.changeAttributes(SAM, note.id, { viewAccess: 'team' })).viewAccess, 'team');
+        assert.equal((await manager.unlockNote(SAM, note.id)).locked, false);
+        assert.equal((await manager.editNote(SAM, note.id, { title: 'Final 2', version: 1 })).title, 'Final 2');
+        assert.deepEqual(activity.map(entry => entry.action),
+            ['created', 'locked', 'attributes_changed', 'unlocked', 'edited']);
+    });
+
+    // Locking twice changes nothing the second time and logs nothing.
+    test('locking a locked note logs nothing', async () => {
+        const note = await manager.createNote(SAM, { title: 'Final' });
+        await manager.lockNote(SAM, note.id);
+        assert.equal((await manager.lockNote(SAM, note.id)).locked, true);
+        assert.equal(activity.filter(entry => entry.action === 'locked').length, 1);
+    });
+
+    // Only the author can lock; another team cannot find the note.
+    test('only the author can lock', async () => {
+        const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
+        await assert.rejects(manager.lockNote(MIKE, note.id), ForbiddenError);
+        await assert.rejects(manager.lockNote(DRAKE, note.id), NotFoundError);
     });
 });
