@@ -64,21 +64,21 @@ test/                 unit and integration tests, on Node's built-in runner
 
 File names carry their tier as a suffix (`note_routes.js`, `note_manager.js`, `note_api.js`), so an import line, editor tab or stack trace shows the tier without reading the folder.
 
-## Design Decisions
+## Design Choices We Spent the Most Time On
 
-### Separate View and Edit Access, at Extendable Scopes
+### 1. Team Editing, for Collaboration
 
-Sharing has two meanings, so a note has two permissions: who can see it and who can edit it. Each is set at one of the scopes `author` or `team`. Edit access can never be wider than view access, because no one can edit what they cannot see, so the valid combinations are: author sees and edits (private); team sees, author edits (shared to read); team sees and edits (shared to work on together).
+At first, only a note's author could edit it. Thinking about how small teams actually work, we chose collaboration: the author can let the whole team edit a note, not just read it. We accepted, knowingly, that team editing makes two people editing the same note at once far more likely, which led to the next decision.
 
-The scopes are an extendable list rather than a yes/no flag, so a wider scope such as `everyone` can be added later as one new value and its rule, without redesigning the schema.
+A note therefore has two permissions, who can see it (`viewAccess`) and who can edit it (`editAccess`), each at the scope `author` or `team`, and edit can never be wider than view. We also considered a public scope for cross-team viewing and editing, but its functional and technical implications are close enough to the author and team scopes that it can be added later: the scopes are an ordered, extendable list, so a wider one is one new value and its rule, without redesigning the schema.
 
-### Concurrent Edits Are Rejected, Not Lost
+### 2. A Simple Concurrency Approach, Given the Timeframe
 
-Several people can edit the same note, so two edits at the same time are normal, not an edge case. See Resolving Concurrent Edits below. In short: each note carries a version; an edit to its text must state the version it was based on, and an edit based on a stale copy is rejected with 409 so the editor can reload, rather than silently overwriting someone else's work.
+With team editing, concurrent edits are normal, not an edge case. Last write wins is not a good concurrency method: it silently throws away someone's work. A merge-based approach is what we would prefer, but it is substantial work. Given our timeframe, we chose the simplest correct approach, optimistic concurrency with a version number: an edit states the version it was based on, and an edit made from a stale copy is rejected with 409 so the editor can reload, rather than overwriting someone else's change. Resolving Concurrent Edits, below, describes it and the merge-based approaches that could replace it.
 
-### An Activity Log, Separate From the Notes
+### 3. An Activity Log, Instead of Search
 
-Every change to a note is recorded in an activity log: who, when, which note, and the action. The log is read through its own paged endpoints, not returned inside notes, because it grows without limit and most views of a note do not need it. It answers two questions: what happened to this note, and what have I been working on.
+We added an activity log for two reasons: auditability (who changed which note, and when) and to let users look back and find things they have worked on. We chose it over a search capability: "what have I been working on?" is answered by a user's own activity, and "what happened to this note?" by the note's. Every change is recorded (who, when, which note, the action), written in the same statement as the change, and read through its own paged endpoints rather than inside notes, because it grows without limit and most views of a note do not need it. Search remains a worthwhile addition (see With More Time).
 
 ## Functional Rules
 
