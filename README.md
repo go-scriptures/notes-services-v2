@@ -99,7 +99,7 @@ I added an activity log for two reasons: auditability (who changed which note, a
 
 ## Resolving Concurrent Edits
 
-Given the time available, we chose a simple, provably correct algorithm: **optimistic concurrency with a version number.**
+Given the time available, I chose a simple, provably correct algorithm: **optimistic concurrency with a version number.**
 
 1. Every note has a `version`, starting at 1, returned with every read.
 2. An edit to the text sends the version it was based on: `{ "body": "...", "version": 3 }`.
@@ -128,7 +128,7 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 
 ## Known Limitations
 
-- **Deletes are hard deletes, and the activity log has no foreign key to notes.** Deleting a note removes it permanently; its activity entries, including a `deleted` entry, are kept, so each user's own activity still shows their changes. Because the note row is gone, `activity.note_id` cannot reference it, so the database does not enforce referential integrity on that column. We would prefer a soft delete (the note kept with a `deleted_at` timestamp) with a real foreign key, which would also let an author restore a note; given our timeframe, we chose the hard delete.
+- **Deletes are hard deletes, and the activity log has no foreign key to notes.** Deleting a note removes it permanently; its activity entries, including a `deleted` entry, are kept, so each user's own activity still shows their changes. Because the note row is gone, `activity.note_id` cannot reference it, so the database does not enforce referential integrity on that column. I would prefer a soft delete (the note kept with a `deleted_at` timestamp) with a real foreign key, which would also let an author restore a note; given the timeframe, I chose the hard delete.
 
 - **Pages can shift.** Paging uses offsets, so if a note is added or deleted while someone is paging, an item can appear on two pages or be skipped.
 - **Deep pages get slower.** The database still reads past every skipped row; irrelevant at small-team scale.
@@ -174,7 +174,7 @@ Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <
 
 - **Stop hard-deleting notes.** Keep deleted notes with a `deleted_at` timestamp, add a foreign key from `activity.note_id` to `notes` for referential integrity, and let an author restore a note deleted by mistake. Every note query would exclude deleted notes.
 - **Stop throwing away concurrent edits wholesale.** A stale edit is rejected even when the two people changed different fields; merge field by field, and reject only real conflicts (see Resolving Concurrent Edits).
-- **Stop moving notes with their author.** A note's team is read through its author, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. We would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.
+- **Stop moving notes with their author.** A note's team is read through its author, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. I would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.
 - **Stop listing activity you cannot open.** Your own activity lists every change you made, so you can click an entry for a note you no longer have access to and get an error. Two better options: mark such entries as "can no longer view", so a client can show them without a link; or leave them out of your activity altogether.
 
 ### Stop: Technical
