@@ -23,6 +23,12 @@ export function loadConfig() {
     return {
         port: Number(process.env.PORT ?? 3000),
         databaseUrl: required('DATABASE_URL'),
-        logLevel: process.env.LOG_LEVEL ?? 'info'
+        logLevel: process.env.LOG_LEVEL ?? 'info',
+        token: {
+            secret: required('JWT_SECRET'),
+            issuer: process.env.JWT_ISSUER ?? 'notes-service',
+            audience: process.env.JWT_AUDIENCE ?? 'notes-api',
+            ttlSeconds: Number(process.env.TOKEN_TTL_SECONDS ?? 900)
+        }
     };
 }

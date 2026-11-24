@@ -4,8 +4,10 @@
 NODE_MIN := 20
 BASE_URL ?= http://localhost:3000
 SEED_PASSWORD ?= notes-demo-password
+EMAIL ?= sdarnold@seahawks.com
+PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health
+.PHONY: help check install up down logs seed db-reset psql test health login auth-test
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -52,3 +54,17 @@ test: ## Run the tests
 
 health: ## 1. Check the service and its database answer
 	curl --silent --show-error --fail-with-body $(BASE_URL)/health && echo
+
+login: ## 2. Log in (EMAIL, PASSWORD; default Sam Darnold) and save the token to .token
+	@curl --silent --show-error --fail-with-body -X POST $(BASE_URL)/auth/login \
+		-H 'Content-Type: application/json' \
+		-d '{"email":"$(EMAIL)","password":"$(PASSWORD)"}' \
+		| node -e "let s = ''; process.stdin.on('data', d => s += d).on('end', () => { \
+			const body = JSON.parse(s || '{}'); \
+			if (!body.accessToken) { console.error('Login failed: ' + (body.error ?? 'no response')); process.exit(1); } \
+			require('node:fs').writeFileSync('.token', body.accessToken); \
+			console.log('Logged in as $(EMAIL); token saved to .token'); })"
+
+auth-test: ## 3. Confirm the saved token is accepted, and show the authenticated user
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	curl --silent --show-error --fail-with-body $(BASE_URL)/auth/test -H "Authorization: Bearer $$(cat .token)" && echo

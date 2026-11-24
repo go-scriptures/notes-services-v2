@@ -23,6 +23,8 @@ After `make up`, run these in order:
 
 1. `make seed`: load the demo teams and users (safe to repeat).
 2. `make health`: the service and its database answer.
+3. `make login`: log in (default Sam Darnold; any user with `EMAIL=...`) and save the token.
+4. `make auth-test`: the saved token is accepted, and shows who it belongs to.
 
 Demo users, all with the password `notes-demo-password`:
 
@@ -98,6 +100,7 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 
 ## Assumptions
 
+- **No registration; login stands in for an identity provider.** Users are seeded. `POST /auth/login` checks a hashed password and issues a 15-minute token; every other request presents it. In production an identity provider would own registration and login, and only the token check would remain here.
 - **Demo users share one password, on purpose.** The seed data (two teams of three users) exists so reviewers can sign in as anyone and see every rule in action; one shared password keeps that simple. It is supplied through `SEED_PASSWORD`, never stored in the code, and is for local demonstration only.
 
 - **Only the author can change a note's attributes,** so a mistake made at creation can be corrected; no one else can change them.
@@ -112,8 +115,13 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 
 ## API Reference
 
+Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <token>`. Errors are JSON: `{ "error": "...", "details": ["..."] }`.
+
 | Method | Path | Success | Errors |
 |---|---|---|---|
+| `GET` | `/health` | 200; 503 when the database is unreachable | |
+| `POST` | `/auth/login` (email, password) | 200 `{ accessToken, tokenType, expiresIn }` | 400, 401 |
+| `GET` | `/auth/test` | 200, the authenticated user | 401 |
 | `POST` | `/notes` | 201 + Location | 400, 401 |
 | `GET` | `/notes?author={userId}` | 200, paged | 400, 401 |
 | `GET` | `/notes/{id}` | 200 | 401, 404 |
@@ -130,6 +138,7 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 - **Access for everyone.** Extend the view and edit levels beyond the team to `everyone`, so notes can be shared across teams.
 - **Viewed events in the activity log.** Record when a user views a note, so someone starting work can find "the note I was reading yesterday".
 - **More detail in the activity log.** Record what specifically changed, or before and after images of the note.
+- **Users changing teams.** A note's team is read through its author, not stored on the note, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. With more time we would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.
 - **A "notes I can edit" filter.** The notes list filters by author; a filter for notes the caller can edit would help someone looking for work to contribute to.
 - **Activity for notes you can no longer see.** Today your own activity lists every change you made, so you can click an entry for a note you no longer have access to and get an error. Two better options: mark such entries as "can no longer view", so a client can show them without a link; or leave them out of your activity altogether. We chose not to build either in this exercise.
 

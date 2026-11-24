@@ -21,6 +21,8 @@ services:
     build: .
     environment:
       DATABASE_URL: postgres://notes:notes@db:5432/notes
+      # Development only. In production the secret comes from a secret store, never from source control.
+      JWT_SECRET: local-development-secret-change-me-0123456789
       LOG_LEVEL: info
     ports:
       - "3000:3000"

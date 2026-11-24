@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { createApp } from '../app.js';
 import { createLogger } from '../util/logger.js';
 import { errorHandler } from '../middleware/error_handler.js';
+import { createTokenService } from '../util/token.js';
 
 let server;
 let baseUrl;
@@ -27,7 +28,10 @@ const fakePool = {
 
 before(async () => {
     const logger = createLogger({ write: line => logLines.push(JSON.parse(line)) });
-    const app = createApp({ pool: fakePool, logger });
+    const tokenService = createTokenService({
+        secret: 'test-secret-at-least-thirty-two-bytes', issuer: 'test', audience: 'test', ttlSeconds: 60
+    });
+    const app = createApp({ pool: fakePool, logger, tokenService });
     server = app.listen(0);
     await new Promise(resolve => server.once('listening', resolve));
     baseUrl = `http://localhost:${server.address().port}`;

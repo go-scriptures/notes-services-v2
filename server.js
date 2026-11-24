@@ -12,6 +12,7 @@ import { loadConfig } from './util/config.js';
 import { createLogger } from './util/logger.js';
 import { createPool } from './util/db.js';
 import { migrate } from './util/migrate.js';
+import { createTokenService } from './util/token.js';
 import { createApp } from './app.js';
 
 // Shorter than Docker's 10-second grace period, so the service logs why it stopped before being killed.
@@ -29,7 +30,8 @@ try {
     process.exit(1);
 }
 
-const app = createApp({ pool, logger });
+const tokenService = createTokenService(config.token);
+const app = createApp({ pool, logger, tokenService });
 
 const server = app.listen(config.port, () => {
     logger.info('notes service listening', { port: config.port });
