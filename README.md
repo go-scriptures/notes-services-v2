@@ -138,8 +138,6 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 
 - **Your activity can point to notes you can no longer open.** If an author narrows who can see a note after you changed it, the entry stays in your activity, but opening the note returns 404. See With More Time for the two ways to improve this.
 
-## Open Questions
-
 ## API Reference
 
 Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <token>`. Errors are JSON: `{ "error": "...", "details": ["..."] }`.
