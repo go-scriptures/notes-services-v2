@@ -11,6 +11,9 @@ import { healthRoutes } from './routes/health_routes.js';
 import { authRoutes } from './routes/auth_routes.js';
 import { createUserApi } from './api/user_api.js';
 import { createAuthManager } from './manager/auth_manager.js';
+import { noteRoutes } from './routes/note_routes.js';
+import { createNoteApi } from './api/note_api.js';
+import { createNoteManager } from './manager/note_manager.js';
 import NotFoundError from './error/not_found_error.js';
 
 /**
@@ -19,6 +22,7 @@ import NotFoundError from './error/not_found_error.js';
  */
 export function createApp({ pool, logger, tokenService }) {
     const authManager = createAuthManager({ userApi: createUserApi(pool), tokenService });
+    const noteManager = createNoteManager({ noteApi: createNoteApi(pool) });
 
     const app = express();
 
@@ -29,6 +33,7 @@ export function createApp({ pool, logger, tokenService }) {
 
     app.use('/health', healthRoutes(pool));
     app.use('/auth', authRoutes(authManager));
+    app.use('/notes', noteRoutes(noteManager, authManager));
 
     // Any route not handled above returns a JSON 404.
     app.use((req, res, next) => {

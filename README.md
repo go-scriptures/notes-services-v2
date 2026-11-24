@@ -50,11 +50,11 @@ test/                 tests, using Node's built-in runner
 
 ## Design Decisions
 
-### Separate View and Edit Access, at Extendable Levels
+### Separate View and Edit Access, at Extendable Scopes
 
-Sharing has two meanings, so a note has two permissions: who can see it and who can edit it. Each is set at one of the levels `author` or `team`. Edit access can never be wider than view access, because no one can edit what they cannot see, so the valid combinations are: author sees and edits (private); team sees, author edits (shared to read); team sees and edits (shared to work on together).
+Sharing has two meanings, so a note has two permissions: who can see it and who can edit it. Each is set at one of the scopes `author` or `team`. Edit access can never be wider than view access, because no one can edit what they cannot see, so the valid combinations are: author sees and edits (private); team sees, author edits (shared to read); team sees and edits (shared to work on together).
 
-The levels are an extendable list rather than a yes/no flag, so a wider level such as `everyone` can be added later as one new value and its rule, without redesigning the schema.
+The scopes are an extendable list rather than a yes/no flag, so a wider scope such as `everyone` can be added later as one new value and its rule, without redesigning the schema.
 
 ### Concurrent Edits Are Rejected, Not Lost
 
@@ -135,7 +135,7 @@ Every endpoint except `/health` and `/auth/login` needs `Authorization: Bearer <
 
 ## With More Time: Change, Add, Stop
 
-- **Access for everyone.** Extend the view and edit levels beyond the team to `everyone`, so notes can be shared across teams.
+- **Access for everyone.** Extend the view and edit scopes beyond the team to `everyone`, so notes can be shared across teams.
 - **Viewed events in the activity log.** Record when a user views a note, so someone starting work can find "the note I was reading yesterday".
 - **More detail in the activity log.** Record what specifically changed, or before and after images of the note.
 - **Users changing teams.** A note's team is read through its author, not stored on the note, so a note follows its author if they change teams: the old team loses sight of it, including notes its members helped edit. With more time we would develop a more sophisticated mechanism, for example storing the team on the note so it stays with the team it was written in, or letting the author choose. There is no team-change operation today.

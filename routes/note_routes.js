@@ -1,0 +1,29 @@
+/**
+ * HTTP routes for notes. HTTP only: reads the request, calls the manager, sends the status.
+ * Every notes route requires a valid bearer token.
+ *
+ * @author: tgibbons via Claude
+ */
+import { Router } from 'express';
+import { authenticate } from '../middleware/authenticate.js';
+
+/**
+ * Creates the note routes with the note manager and the auth manager.
+ */
+export function noteRoutes(noteManager, authManager) {
+    const router = Router();
+    router.use(authenticate(authManager));
+
+    // Create a note: 201 with a Location header.
+    router.post('/', async (req, res) => {
+        const note = await noteManager.createNote(req.identity, req.body);
+        res.status(201).location(`${req.baseUrl}/${note.id}`).json(note);
+    });
+
+    // Read one note.
+    router.get('/:id', async (req, res) => {
+        res.json(await noteManager.getNote(req.identity, req.params.id));
+    });
+
+    return router;
+}

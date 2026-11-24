@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health login auth-test
+.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -68,3 +68,19 @@ login: ## 2. Log in (EMAIL, PASSWORD; default Sam Darnold) and save the token to
 auth-test: ## 3. Confirm the saved token is accepted, and show the authenticated user
 	@test -s .token || (echo "No token: run make login first" && exit 1)
 	curl --silent --show-error --fail-with-body $(BASE_URL)/auth/test -H "Authorization: Bearer $$(cat .token)" && echo
+
+# ---------------------------------------------------------------------------
+# Working with notes: run `make login` first; these use the saved token.
+# ---------------------------------------------------------------------------
+
+note-create: ## Create a note (TITLE required; VIEW and EDIT author or team, default author)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(TITLE)" || (echo "TITLE is required, for example: make note-create TITLE='Game plan'" && exit 1)
+	curl --silent --show-error --fail-with-body -X POST $(BASE_URL)/notes \
+		-H "Authorization: Bearer $$(cat .token)" -H 'Content-Type: application/json' \
+		-d '{"title":"$(TITLE)","viewAccess":"$(or $(VIEW),author)","editAccess":"$(or $(EDIT),author)"}' && echo
+
+note-get: ## Show one note (ID required)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(ID)" || (echo "ID is required, for example: make note-get ID=<note id>" && exit 1)
+	curl --silent --show-error --fail-with-body $(BASE_URL)/notes/$(ID) -H "Authorization: Bearer $$(cat .token)" && echo
