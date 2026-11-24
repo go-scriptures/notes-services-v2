@@ -176,6 +176,24 @@ export function createNoteApi(pool) {
                 [id, locked, actorId, locked ? Action.LOCKED : Action.UNLOCKED]
             );
             return rows[0] ? toNote(rows[0]) : null;
+        },
+
+        /**
+         * Deletes a note permanently and records the 'deleted' entry, in one statement.
+         * Returns true when a note was deleted.
+         */
+        async deleteNote({ id, actorId }) {
+            const { rows } = await pool.query(
+                `WITH deleted AS (
+                     DELETE FROM notes WHERE id = $1 RETURNING id
+                 ), logged AS (
+                     INSERT INTO activity (note_id, user_id, action)
+                     SELECT id, $2, $3 FROM deleted
+                 )
+                 SELECT id FROM deleted`,
+                [id, actorId, Action.DELETED]
+            );
+            return rows.length > 0;
         }
     };
 }

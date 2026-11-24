@@ -79,6 +79,13 @@ function fakeNoteApi() {
             note.locked = locked;
             activity.push({ noteId: id, userId: actorId, action: locked ? 'locked' : 'unlocked' });
             return new Note({ ...note });
+        },
+        async deleteNote({ id, actorId }) {
+            if (!notes.delete(id)) {
+                return false;
+            }
+            activity.push({ noteId: id, userId: actorId, action: 'deleted' });
+            return true;
         }
     };
 }
@@ -349,5 +356,32 @@ describe('Attributes and lock', () => {
         const note = await manager.createNote(SAM, { title: 'Plan', viewAccess: 'team', editAccess: 'team' });
         await assert.rejects(manager.lockNote(MIKE, note.id), ForbiddenError);
         await assert.rejects(manager.lockNote(DRAKE, note.id), NotFoundError);
+    });
+});
+
+// Deleting a note
+describe('Delete', () => {
+    // The author deletes, even while locked; the note is gone and the deletion is logged.
+    test('the author deletes a locked note, and it is logged', async () => {
+        const note = await manager.createNote(SAM, { title: 'Bye' });
+        await manager.lockNote(SAM, note.id);
+        await manager.deleteNote(SAM, note.id);
+        await assert.rejects(manager.getNote(SAM, note.id), NotFoundError);
+        assert.deepEqual(activity.at(-1), { noteId: note.id, userId: 'u-sam', action: 'deleted' });
+    });
+
+    // A teammate with edit access still cannot delete: forbidden, and the note survives.
+    test('a teammate with edit access is forbidden to delete', async () => {
+        const note = await manager.createNote(SAM, { title: 'Keep', viewAccess: 'team', editAccess: 'team' });
+        await assert.rejects(manager.deleteNote(MIKE, note.id), ForbiddenError);
+        assert.equal((await manager.getNote(SAM, note.id)).id, note.id);
+    });
+
+    // Another team cannot find the note; a repeat delete finds nothing.
+    test('another team and a repeat delete get not found', async () => {
+        const note = await manager.createNote(SAM, { title: 'Once', viewAccess: 'team' });
+        await assert.rejects(manager.deleteNote(DRAKE, note.id), NotFoundError);
+        await manager.deleteNote(SAM, note.id);
+        await assert.rejects(manager.deleteNote(SAM, note.id), NotFoundError);
     });
 });

@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock
+.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock note-delete
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -120,3 +120,9 @@ note-unlock: ## Unlock a note's text (ID required)
 	@test -s .token || (echo "No token: run make login first" && exit 1)
 	@test -n "$(ID)" || (echo "ID is required, for example: make note-unlock ID=<note id>" && exit 1)
 	curl --silent --show-error --fail-with-body -X PUT $(BASE_URL)/notes/$(ID)/unlock -H "Authorization: Bearer $$(cat .token)" && echo
+
+note-delete: ## Delete a note permanently (ID required)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	@test -n "$(ID)" || (echo "ID is required, for example: make note-delete ID=<note id>" && exit 1)
+	curl --silent --show-error --fail-with-body -X DELETE $(BASE_URL)/notes/$(ID) -H "Authorization: Bearer $$(cat .token)" \
+		&& echo "Deleted note $(ID)"

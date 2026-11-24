@@ -307,6 +307,17 @@ export function createNoteManager({ noteApi }) {
          */
         async unlockNote(identity, id) {
             return setLocked(identity, id, false);
+        },
+
+        /**
+         * Deletes a note permanently. Author only; allowed while locked; no version needed.
+         */
+        async deleteNote(identity, id) {
+            await findOwnNote(identity, id);
+            // The note may have been deleted between the check and this delete.
+            if (!await noteApi.deleteNote({ id, actorId: identity.userId })) {
+                throw new NotFoundError(`Note ${id} not found`);
+            }
         }
     };
 }

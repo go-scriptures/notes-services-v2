@@ -50,5 +50,11 @@ export function noteRoutes(noteManager, authManager) {
         res.json(await noteManager.unlockNote(req.identity, req.params.id));
     });
 
+    // Delete a note permanently (author only): 204 with no body.
+    router.delete('/:id', async (req, res) => {
+        await noteManager.deleteNote(req.identity, req.params.id);
+        res.status(204).end();
+    });
+
     return router;
 }
