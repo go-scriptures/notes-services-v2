@@ -64,21 +64,21 @@ test/                 unit and integration tests, on Node's built-in runner
 
 File names carry their tier as a suffix (`note_routes.js`, `note_manager.js`, `note_api.js`), so an import line, editor tab or stack trace shows the tier without reading the folder.
 
-## Design Choices We Spent the Most Time On
+## Design Choices I Spent the Most Time On
 
 ### 1. Team Editing, for Collaboration
 
-At first, only a note's author could edit it. Thinking about how small teams actually work, we chose collaboration: the author can let the whole team edit a note, not just read it. We accepted, knowingly, that team editing makes two people editing the same note at once far more likely, which led to the next decision.
+At first, only a note's author could edit the note. Thinking about how teams actually work, I decided collaboration was important: the author can let the whole team edit a note, not just read it, but the author may also want to create a note only they can edit. It is recognized that collaborative editing increases the likelihood of edit concurrency issues, more on this below.
 
-A note therefore has two permissions, who can see it (`viewAccess`) and who can edit it (`editAccess`), each at the scope `author` or `team`, and edit can never be wider than view. We also considered a public scope for cross-team viewing and editing, but its functional and technical implications are close enough to the author and team scopes that it can be added later: the scopes are an ordered, extendable list, so a wider one is one new value and its rule, without redesigning the schema.
+A note therefore has two permissions, who can see it (`viewAccess`) and who can edit it (`editAccess`), each at the scope `author` or `team`, and edit can never be wider than view. I also considered a public scope for cross-team viewing and editing, but its functional and technical implications are close enough to the author and team scopes that it can be added later: the scopes are an ordered, extendable list, so a wider one is one new value and its rule, without redesigning the schema.
 
 ### 2. A Simple Concurrency Approach, Given the Timeframe
 
-With team editing, concurrent edits are normal, not an edge case. Last write wins is not a good concurrency method: it silently throws away someone's work. A merge-based approach is what we would prefer, but it is substantial work. Given our timeframe, we chose the simplest correct approach, optimistic concurrency with a version number: an edit states the version it was based on, and an edit made from a stale copy is rejected with 409 so the editor can reload, rather than overwriting someone else's change. Resolving Concurrent Edits, below, describes it and the merge-based approaches that could replace it.
+With team editing, concurrent edits can occur more frequently. So, a method for handling concurrent edits is required. Last write wins is not a good concurrency method: it silently throws away someone's work. A merge-based approach is what I would prefer, but it felt heavier than our given timeframe allowed. What is most important, at this time, is to show that I recognize the issue and implemented a solution. As such, I chose the simplest approach, optimistic concurrency with a version number: an edit states the version it was based on, and an edit made from a stale copy is rejected with 409 so the editor can reload, rather than overwriting someone else's change. Resolving Concurrent Edits, below, describes it and the merge-based approaches that could replace it.
 
 ### 3. An Activity Log, Instead of Search
 
-We added an activity log for two reasons: auditability (who changed which note, and when) and to let users look back and find things they have worked on. We chose it over a search capability: "what have I been working on?" is answered by a user's own activity, and "what happened to this note?" by the note's. Every change is recorded (who, when, which note, the action), written in the same statement as the change, and read through its own paged endpoints rather than inside notes, because it grows without limit and most views of a note do not need it. Search remains a worthwhile addition (see With More Time).
+I added an activity log for two reasons: auditability (who changed which note, and when) and to let users look back and find things they had worked on before. I chose activity log over a search capability for now because an activity log provides an ability to find notes upon which they worked in the past and provides an audit trail of change. Every change is recorded (who, when, which note, the action), written in the same statement as the change, and read through its own paged endpoints rather than inside notes. Search remains a worthwhile addition (see With More Time).
 
 ## Functional Rules
 
