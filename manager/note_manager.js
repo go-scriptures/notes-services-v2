@@ -11,6 +11,51 @@ import ValidationError from '../error/validation_error.js';
 import NotFoundError from '../error/not_found_error.js';
 
 const ACCESS_RULE = `must be one of ${Object.values(Access).join(', ')}`;
+const DEFAULT_PAGE_NUMBER = 1;
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
+/**
+ * Reads a whole-number query parameter. Returns the default when it is missing,
+ * or null when it is not a whole number between min and max.
+ */
+export function readWholeNumber(value, defaultValue, min, max) {
+    if (value === undefined) {
+        return defaultValue;
+    }
+    if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+        return null;
+    }
+    const number = Number(value);
+    return number >= min && number <= max ? number : null;
+}
+
+/**
+ * Reads pageNumber and pageSize from a query, adding a problem to details for each invalid value.
+ * Returns { pageNumber, pageSize, limit, offset }, where limit reads one extra row to learn
+ * whether another page exists.
+ */
+export function readPaging(query, details) {
+    const pageNumber = readWholeNumber(query.pageNumber, DEFAULT_PAGE_NUMBER, 1, Number.MAX_SAFE_INTEGER);
+    if (pageNumber === null) {
+        details.push('pageNumber must be a whole number of 1 or more');
+    }
+    const pageSize = readWholeNumber(query.pageSize, DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+    if (pageSize === null) {
+        details.push(`pageSize must be a whole number from 1 to ${MAX_PAGE_SIZE}`);
+    }
+    return { pageNumber, pageSize, limit: pageSize + 1, offset: (pageNumber - 1) * pageSize };
+}
+
+/**
+ * Turns the rows read with readPaging's limit into { items, paging }.
+ */
+export function toPage(rows, { pageNumber, pageSize }) {
+    return {
+        items: rows.slice(0, pageSize),
+        paging: { pageNumber, pageSize, hasNextPage: rows.length > pageSize }
+    };
+}
 
 /**
  * Returns true when the value is a string with at least one non-space character.
@@ -115,6 +160,31 @@ export function createNoteManager({ noteApi }) {
          */
         async getNote(identity, id) {
             return findVisibleNote(identity, id);
+        },
+
+        /**
+         * Lists one page of the notes the caller can see in their team, newest first.
+         * author (a user ID) narrows the list to one author; the caller's own notes are author={own ID}.
+         * pageNumber defaults to 1 and pageSize to 25 (at most 100).
+         */
+        async listNotes(identity, query = {}) {
+            const details = [];
+            if (query.author !== undefined && typeof query.author !== 'string') {
+                details.push('author may be given only once');
+            }
+            const paging = readPaging(query, details);
+            if (details.length > 0) {
+                throw new ValidationError('Invalid list query', details);
+            }
+
+            const rows = await noteApi.listNotes({
+                teamId: identity.teamId,
+                viewerId: identity.userId,
+                authorId: query.author,
+                limit: paging.limit,
+                offset: paging.offset
+            });
+            return toPage(rows, paging);
         }
     };
 }

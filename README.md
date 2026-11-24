@@ -101,6 +101,7 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 ## Assumptions
 
 - **No registration; login stands in for an identity provider.** Users are seeded. `POST /auth/login` checks a hashed password and issues a 15-minute token; every other request presents it. In production an identity provider would own registration and login, and only the token check would remain here.
+- **Paging defaults to page 1 of 25, and a page holds at most 100 items.** A larger `pageSize` returns 400 rather than being silently reduced. There is no right answer for these numbers; they keep responses small, and the decision is recorded here so it can be changed deliberately. Each list reads one extra row to set `hasNextPage`, rather than counting every row.
 - **Demo users share one password, on purpose.** The seed data (two teams of three users) exists so reviewers can sign in as anyone and see every rule in action; one shared password keeps that simple. It is supplied through `SEED_PASSWORD`, never stored in the code, and is for local demonstration only.
 
 - **Only the author can change a note's attributes,** so a mistake made at creation can be corrected; no one else can change them.
@@ -108,6 +109,10 @@ More sophisticated algorithms could replace it, in increasing order of complexit
 - **`/activity/users/{userId}` includes the user ID for consistency.** It is not technically needed, because the endpoint is limited to the authenticated user, but it mirrors `/activity/notes/{noteId}`, and the shape would allow a later rule (for example, team leads reading their team's activity) without a new endpoint.
 
 ## Known Limitations
+
+- **Pages can shift.** Paging uses offsets, so if a note is added or deleted while someone is paging, an item can appear on two pages or be skipped.
+- **Deep pages get slower.** The database still reads past every skipped row; irrelevant at small-team scale.
+- **The list's visibility rule is also expressed in SQL.** Filtering after reading a page would return short pages, so the database filters by who may see each note. The manager still decides which filters apply; adding a wider scope means updating this query as well.
 
 - **Your activity can point to notes you can no longer open.** If an author narrows who can see a note after you changed it, the entry stays in your activity, but opening the note returns 404. See With More Time for the two ways to improve this.
 

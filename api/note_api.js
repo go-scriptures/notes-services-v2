@@ -71,6 +71,36 @@ export function createNoteApi(pool) {
                 [id]
             );
             return rows[0] ? toNote(rows[0]) : null;
+        },
+
+        /**
+         * Returns one page of a team's notes, newest first, matching the filters the manager chose:
+         *   viewerId: only notes this user may see (their own, plus notes the team may see);
+         *   authorId: only notes by this author (optional).
+         * The filters run in the query, not afterwards, so every page is full and correctly ordered.
+         * An authorId that is not a UUID cannot match, so it returns an empty page.
+         */
+        async listNotes({ teamId, viewerId, authorId, limit, offset }) {
+            if (authorId !== undefined && !UUID_PATTERN.test(authorId)) {
+                return [];
+            }
+            const params = [teamId, viewerId, limit, offset];
+            let authorFilter = '';
+            if (authorId !== undefined) {
+                params.push(authorId);
+                authorFilter = `AND notes.created_by = $${params.length}`;
+            }
+            const { rows } = await pool.query(
+                `SELECT notes.*, users.team_id
+                 FROM notes JOIN users ON users.id = notes.created_by
+                 WHERE users.team_id = $1
+                   AND (notes.created_by = $2 OR notes.view_access = 'team')
+                   ${authorFilter}
+                 ORDER BY notes.created_at DESC, notes.id DESC
+                 LIMIT $3 OFFSET $4`,
+                params
+            );
+            return rows.map(toNote);
         }
     };
 }

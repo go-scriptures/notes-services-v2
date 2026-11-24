@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get
+.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -84,3 +84,9 @@ note-get: ## Show one note (ID required)
 	@test -s .token || (echo "No token: run make login first" && exit 1)
 	@test -n "$(ID)" || (echo "ID is required, for example: make note-get ID=<note id>" && exit 1)
 	curl --silent --show-error --fail-with-body $(BASE_URL)/notes/$(ID) -H "Authorization: Bearer $$(cat .token)" && echo
+
+notes: ## List the notes I can see (optional AUTHOR=<user id>, PAGE=, SIZE=)
+	@test -s .token || (echo "No token: run make login first" && exit 1)
+	curl --silent --show-error --fail-with-body --get $(BASE_URL)/notes -H "Authorization: Bearer $$(cat .token)" \
+		$(if $(AUTHOR),--data-urlencode author=$(AUTHOR)) \
+		$(if $(PAGE),--data-urlencode pageNumber=$(PAGE)) $(if $(SIZE),--data-urlencode pageSize=$(SIZE)) && echo

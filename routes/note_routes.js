@@ -20,6 +20,11 @@ export function noteRoutes(noteManager, authManager) {
         res.status(201).location(`${req.baseUrl}/${note.id}`).json(note);
     });
 
+    // List one page of the notes the caller can see, optionally by one author.
+    router.get('/', async (req, res) => {
+        res.json(await noteManager.listNotes(req.identity, req.query));
+    });
+
     // Read one note.
     router.get('/:id', async (req, res) => {
         res.json(await noteManager.getNote(req.identity, req.params.id));

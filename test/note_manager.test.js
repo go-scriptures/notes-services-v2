@@ -41,6 +41,15 @@ function fakeNoteApi() {
         },
         async findNoteById(id) {
             return notes.has(id) ? new Note({ ...notes.get(id) }) : null;
+        },
+        async listNotes({ teamId, viewerId, authorId, limit, offset }) {
+            return [...notes.values()]
+                .filter(note => note.teamId === teamId)
+                .filter(note => note.createdBy === viewerId || note.viewAccess === 'team')
+                .filter(note => authorId === undefined || note.createdBy === authorId)
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+                .slice(offset, offset + limit)
+                .map(note => new Note({ ...note }));
         }
     };
 }
@@ -128,5 +137,67 @@ describe('Read one', () => {
     // An ID that does not exist.
     test('an unknown id is not found', async () => {
         await assert.rejects(manager.getNote(SAM, 'no-such-id'), NotFoundError);
+    });
+});
+
+// Listing notes
+describe('List', () => {
+    let samPrivate, samTeam, mikePrivate, mikeTeam;
+
+    beforeEach(async () => {
+        samPrivate = await manager.createNote(SAM, { title: 'sam private' });
+        samTeam = await manager.createNote(SAM, { title: 'sam team', viewAccess: 'team' });
+        mikePrivate = await manager.createNote(MIKE, { title: 'mike private' });
+        mikeTeam = await manager.createNote(MIKE, { title: 'mike team', viewAccess: 'team' });
+        await manager.createNote(DRAKE, { title: 'drake team', viewAccess: 'team' });
+    });
+
+    /**
+     * Returns the IDs of a list result, in the order returned.
+     */
+    function ids(result) {
+        return result.items.map(note => note.id);
+    }
+
+    // By default: my notes plus teammates' team notes, newest first, page 1 of 25.
+    test('lists what I can see, newest first, page 1 of 25', async () => {
+        const result = await manager.listNotes(SAM);
+        assert.deepEqual(ids(result), [mikeTeam.id, samTeam.id, samPrivate.id]);
+        assert.deepEqual(result.paging, { pageNumber: 1, pageSize: 25, hasNextPage: false });
+    });
+
+    // A teammate sees their own private notes, never mine.
+    test('a teammate sees their own private notes but not mine', async () => {
+        const result = await manager.listNotes(MIKE);
+        assert.deepEqual(ids(result), [mikeTeam.id, mikePrivate.id, samTeam.id]);
+    });
+
+    // author narrows the list to one author; my own ID gives my notes.
+    test('author narrows the list, including to my own notes', async () => {
+        assert.deepEqual(ids(await manager.listNotes(SAM, { author: 'u-mike' })), [mikeTeam.id]);
+        assert.deepEqual(ids(await manager.listNotes(SAM, { author: 'u-sam' })), [samTeam.id, samPrivate.id]);
+    });
+
+    // hasNextPage is true when another page exists, and false on the last page.
+    test('pages through the notes with hasNextPage', async () => {
+        const first = await manager.listNotes(SAM, { pageSize: '2' });
+        assert.deepEqual(ids(first), [mikeTeam.id, samTeam.id]);
+        assert.deepEqual(first.paging, { pageNumber: 1, pageSize: 2, hasNextPage: true });
+        const second = await manager.listNotes(SAM, { pageSize: '2', pageNumber: '2' });
+        assert.deepEqual(ids(second), [samPrivate.id]);
+        assert.equal(second.paging.hasNextPage, false);
+    });
+
+    // Bad paging values are all reported at once; pageSize may be at most 100.
+    test('rejects invalid paging values', async () => {
+        const err = await manager.listNotes(SAM, { pageNumber: '0', pageSize: '101' }).catch(error => error);
+        assert.ok(err instanceof ValidationError);
+        assert.equal(err.details.length, 2);
+        await manager.listNotes(SAM, { pageSize: '100' });
+    });
+
+    // An author given twice arrives as a list, and is rejected.
+    test('rejects a repeated author', async () => {
+        await assert.rejects(manager.listNotes(SAM, { author: ['u-sam', 'u-mike'] }), ValidationError);
     });
 });
