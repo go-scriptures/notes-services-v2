@@ -7,7 +7,7 @@ SEED_PASSWORD ?= notes-demo-password
 EMAIL ?= sdarnold@seahawks.com
 PASSWORD ?= $(SEED_PASSWORD)
 
-.PHONY: help check install up down logs seed db-reset psql test health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock note-delete activity-note activity-mine
+.PHONY: help check install up down logs seed db-reset psql test test-integration health login auth-test note-create note-get notes note-edit note-attributes note-lock note-unlock note-delete activity-note activity-mine
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -45,8 +45,13 @@ db-reset: check ## Delete all data, then start again with a fresh, migrated and 
 psql: ## Open a SQL prompt on the database
 	docker compose exec db psql -U notes -d notes
 
-test: ## Run the tests
+test: ## Run the unit tests (no database needed)
 	npm test
+
+test-integration: ## Run every test, including integration tests against a separate notes_test database (after make up)
+	@docker compose exec -T db psql -U notes -d notes -tAc "SELECT 1 FROM pg_database WHERE datname = 'notes_test'" | grep -q 1 \
+		|| docker compose exec -T db createdb -U notes notes_test
+	TEST_DATABASE_URL=postgres://notes:notes@localhost:5433/notes_test npm test
 
 # ---------------------------------------------------------------------------
 # Validating a new install: run these in order after `make up`.

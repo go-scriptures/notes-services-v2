@@ -37,6 +37,15 @@ Demo users, all with the password `notes-demo-password`:
 | patriots | Mike Vrabel | mvrabel@patriots.com |
 | patriots | Rhamondre Stevenson | rstevenson@patriots.com |
 
+## Testing
+
+Two layers, both on Node's built-in test runner:
+
+- **Unit tests** (`make test`): the business rules in the managers, against in-memory fakes of the data tier, plus the service skeleton over HTTP. Fast, and no database needed.
+- **Integration tests** (`make test-integration`, after `make up`): the whole service over HTTP against a separate `notes_test` database. They prove what fakes cannot: the SQL itself, the activity entry written with each change, the database constraints, and that two simultaneous edits of the same version produce exactly one success and one 409.
+
+GitHub Actions runs both on every push: the unit tests on Node 20 and 22, and the integration tests against a PostgreSQL service container.
+
 ## Project Structure
 
 ```
