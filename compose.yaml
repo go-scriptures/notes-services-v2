@@ -1,0 +1,32 @@
+# Local stack: PostgreSQL in its own container, and the notes service.
+# The service starts only when the database is accepting connections.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: notes
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: notes
+    ports:
+      - "5433:5432"   # 5433 on the host, so it never clashes with a local PostgreSQL
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "notes", "-d", "notes"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://notes:notes@db:5432/notes
+      LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata: {}

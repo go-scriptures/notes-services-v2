@@ -6,9 +6,33 @@ A back-end REST service where several small teams capture notes and work on them
 
 ## Getting Started
 
+Requires Docker (with Compose) and Node 20 or later. Every routine task is a Make target; `make help` lists them.
+
+```
+make install   # install Node dependencies
+make up        # build and start PostgreSQL and the service; waits until both are healthy
+make test      # run the tests
+make down      # stop (data is kept)
+```
+
+The service listens on http://localhost:3000; PostgreSQL is on host port 5433.
+
 ## Validating a New Install
 
+After `make up`, run these in order:
+
+1. `make health`: the service and its database answer.
+
 ## Project Structure
+
+```
+app.js, server.js     build the app; start it (graceful shutdown on SIGTERM and SIGINT)
+routes/               HTTP only
+middleware/           request IDs and logging, error handling
+error/                typed errors, each mapped to an HTTP status
+util/                 configuration, logging, database pool (operational, outside the tiers)
+test/                 tests, using Node's built-in runner
+```
 
 ## Design Decisions
 
